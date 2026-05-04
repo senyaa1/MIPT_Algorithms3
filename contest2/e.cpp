@@ -1,257 +1,242 @@
 #include <algorithm>
+#include <cstddef>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
 
-struct Node
-{
-	int parent = -1;
-	int depth = 0;
-	int suf_idx = -1;
-	std::vector<int> children;
+namespace {
+constexpr auto k_no_index = std::numeric_limits<std::size_t>::max();
+}
+
+struct Node {
+  std::size_t parent_index = k_no_index;
+  std::size_t depth = 0;
+  std::size_t suffix_index = k_no_index;
+  std::vector<std::size_t> children;
 };
 
 
-class SuffixArray
-{
-      public:
-	SuffixArray(const std::string &combinedString)
-	    : text(combinedString), totalLength(combinedString.length()), suffixArray(totalLength, 0),
-	      rank(totalLength, 0), lcp(totalLength > 0 ? totalLength - 1 : 0, 0)
-	{
-		if (totalLength > 0)
-		{
-			buildSuffixArray();
-			buildLCP();
-		}
-	}
+class SuffixArray {
+ public:
+  explicit SuffixArray(const std::string& combined_string)
+      : text_(combined_string),
+        total_length_(combined_string.length()),
+        suffix_array_(total_length_, 0),
+        rank_(total_length_, 0),
+        lcp_(total_length_ > 0 ? total_length_ - 1 : 0, 0) {
+    if (total_length_ > 0) {
+      build_suffix_array();
+      build_lcp();
+    }
+  }
 
-	const std::vector<int> &getSA() const
-	{
-		return suffixArray;
-	}
-	const std::vector<int> &getLCP() const
-	{
-		return lcp;
-	}
+  const std::vector<std::size_t>& get_suffix_array() const {
+    return suffix_array_;
+  }
 
-      private:
-	void buildSuffixArray()
-	{
-		std::vector<int> charClass(totalLength, 0);
-		for (int i = 0; i < totalLength; i++)
-		{
-			charClass[i] = text[i];
-			suffixArray[i] = i;
-		}
+  const std::vector<std::size_t>& get_lcp() const { return lcp_; }
 
-		for (int k = 1; k < totalLength; k *= 2)
-		{
-			std::vector<std::pair<std::pair<int, int>, int>> pairs(totalLength);
-			for (int i = 0; i < totalLength; i++)
-			{
-				int nextClass = (i + k < totalLength) ? charClass[i + k] : -1;
-				pairs[i] = {{charClass[i], nextClass}, i};
-			}
-			std::sort(pairs.begin(), pairs.end());
-			for (int i = 0; i < totalLength; i++)
-			{
-				suffixArray[i] = pairs[i].second;
-			}
-			charClass[suffixArray[0]] = 0;
-			for (int i = 1; i < totalLength; i++)
-			{
-				int diff = (pairs[i].first != pairs[i - 1].first) ? 1 : 0;
-				charClass[suffixArray[i]] = charClass[suffixArray[i - 1]] + diff;
-			}
-			if (charClass[suffixArray[totalLength - 1]] == totalLength - 1)
-			{
-				break;
-			}
-		}
+ private:
+  void build_suffix_array() {
+    std::vector<int> equivalence_class(total_length_, 0);
+    for (std::size_t i = 0; i < total_length_; ++i) {
+      equivalence_class[i] = text_[i];
+      suffix_array_[i] = i;
+    }
 
-		for (int i = 0; i < totalLength; i++)
-		{
-			rank[suffixArray[i]] = i;
-		}
-	}
+    for (std::size_t offset = 1; offset < total_length_; offset *= 2) {
+      std::vector<std::pair<std::pair<int, int>, std::size_t>> suffix_pairs(
+          total_length_);
+      for (std::size_t i = 0; i < total_length_; ++i) {
+        const auto next_class =
+            (i + offset < total_length_) ? equivalence_class[i + offset] : -1;
+        suffix_pairs[i] = {{equivalence_class[i], next_class}, i};
+      }
 
-	void buildLCP()
-	{
-		int currentLcp = 0;
-		for (int i = 0; i < totalLength; i++)
-		{
-			if (rank[i] == totalLength - 1)
-			{
-				currentLcp = 0;
-				continue;
-			}
-			int j = suffixArray[rank[i] + 1];
-			while (i + currentLcp < totalLength && j + currentLcp < totalLength &&
-			       text[i + currentLcp] == text[j + currentLcp])
-			{
-				currentLcp++;
-			}
-			lcp[rank[i]] = currentLcp;
-			if (currentLcp > 0)
-			{
-				currentLcp--;
-			}
-		}
-	}
+      std::sort(suffix_pairs.begin(), suffix_pairs.end());
+      for (std::size_t i = 0; i < total_length_; ++i) {
+        suffix_array_[i] = suffix_pairs[i].second;
+      }
 
-	int totalLength;
-	std::string text;
-	std::vector<int> suffixArray;
-	std::vector<int> rank;
-	std::vector<int> lcp;
+      equivalence_class[suffix_array_[0]] = 0;
+
+      for (std::size_t i = 1; i < total_length_; ++i) {
+        const auto has_new_class =
+            (suffix_pairs[i].first != suffix_pairs[i - 1].first) ? 1 : 0;
+        equivalence_class[suffix_array_[i]] =
+            equivalence_class[suffix_array_[i - 1]] + has_new_class;
+      }
+
+      if (std::size_t(equivalence_class[suffix_array_[total_length_ - 1]]) ==
+          equivalence_class.size() - 1) {
+        break;
+      }
+    }
+
+    for (std::size_t i = 0; i < total_length_; ++i) {
+      rank_[suffix_array_[i]] = i;
+    }
+  }
+
+  void build_lcp() {
+    std::size_t current_lcp = 0;
+    for (std::size_t i = 0; i < total_length_; ++i) {
+      if (rank_[i] == total_length_ - 1) {
+        current_lcp = 0;
+        continue;
+      }
+      const auto next_suffix_index = suffix_array_[rank_[i] + 1];
+      while (i + current_lcp < total_length_ &&
+             next_suffix_index + current_lcp < total_length_ &&
+             text_[i + current_lcp] == text_[next_suffix_index + current_lcp]) {
+        ++current_lcp;
+      }
+      lcp_[rank_[i]] = current_lcp;
+      if (current_lcp > 0) {
+        --current_lcp;
+      }
+    }
+  }
+
+  std::string text_;
+  std::size_t total_length_;
+  std::vector<std::size_t> suffix_array_;
+  std::vector<std::size_t> rank_;
+  std::vector<std::size_t> lcp_;
 };
 
-class SuffixTree
-{
-      public:
-	SuffixTree(const std::string &s, const std::string &t)
-	    : stringS(s), stringT(t), combinedString(s + t), lengthS(s.length()), totalLength((s + t).length())
-	{
-	}
+class SuffixTree {
+ public:
+  SuffixTree(const std::string& string_s, const std::string& string_t)
+      : length_s_(string_s.length()),
+        total_length_(string_s.length() + string_t.length()) {}
 
-	void build(const std::vector<int> &suffixArray, const std::vector<int> &lcp)
-	{
-		tree.clear();
-		tree.push_back(Node());
-		std::vector<int> activePathStack;
-		activePathStack.push_back(0);
+  void build(const std::vector<std::size_t>& suffix_array,
+             const std::vector<std::size_t>& lcp) {
+    tree_.clear();
+    tree_.push_back(Node());
+    std::vector<std::size_t> active_path_stack;
+    active_path_stack.push_back(0);
 
-		for (int i = 0; i < totalLength; i++)
-		{
-			int suffixStart = suffixArray[i];
-			int maxSuffixLen = (suffixStart < lengthS) ? lengthS - suffixStart : totalLength - suffixStart;
-			int lcpValue = (i == 0) ? 0 : lcp[i - 1];
-			if (lcpValue > maxSuffixLen)
-			{
-				lcpValue = maxSuffixLen;
-			}
+    for (std::size_t i = 0; i < total_length_; ++i) {
+      const auto suffix_start = suffix_array[i];
+      const auto max_suffix_length = (suffix_start < length_s_)
+                                         ? length_s_ - suffix_start
+                                         : total_length_ - suffix_start;
+      auto lcp_value = (i == 0) ? 0UL : lcp[i - 1];
+      if (lcp_value > max_suffix_length) {
+        lcp_value = max_suffix_length;
+      }
 
-			int currentNode = activePathStack.back();
-			int previousNode = -1;
-			while (tree[currentNode].depth > lcpValue)
-			{
-				previousNode = currentNode;
-				activePathStack.pop_back();
-				currentNode = activePathStack.back();
-			}
+      auto current_node = active_path_stack.back();
+      auto previous_node = k_no_index;
+      while (tree_[current_node].depth > lcp_value) {
+        previous_node = current_node;
+        active_path_stack.pop_back();
+        current_node = active_path_stack.back();
+      }
 
-			if (tree[currentNode].depth < lcpValue)
-			{
-				int splitNode = tree.size();
-				tree.push_back(Node());
-				tree[splitNode].parent = currentNode;
-				tree[splitNode].depth = lcpValue;
-				tree[splitNode].suf_idx = tree[previousNode].suf_idx;
+      if (tree_[current_node].depth < lcp_value) {
+        const auto split_node = tree_.size();
+        tree_.push_back(Node());
+        tree_[split_node].parent_index = current_node;
+        tree_[split_node].depth = lcp_value;
+        tree_[split_node].suffix_index = tree_[previous_node].suffix_index;
 
-				for (int j = 0; j < (int)tree[currentNode].children.size(); j++)
-				{
-					if (tree[currentNode].children[j] == previousNode)
-					{
-						tree[currentNode].children[j] = splitNode;
-						break;
-					}
-				}
+        for (auto& child : tree_[current_node].children) {
+          if (child == previous_node) {
+            child = split_node;
+            break;
+          }
+        }
 
-				tree[previousNode].parent = splitNode;
-				tree[splitNode].children.push_back(previousNode);
+        tree_[previous_node].parent_index = split_node;
+        tree_[split_node].children.push_back(previous_node);
 
-				activePathStack.push_back(splitNode);
-				currentNode = splitNode;
-			}
+        active_path_stack.push_back(split_node);
+        current_node = split_node;
+      }
 
-			if (maxSuffixLen > tree[currentNode].depth)
-			{
-				int leafNode = tree.size();
-				tree.push_back(Node());
-				tree[leafNode].parent = currentNode;
-				tree[leafNode].depth = maxSuffixLen;
-				tree[leafNode].suf_idx = suffixStart;
-				tree[currentNode].children.push_back(leafNode);
-				activePathStack.push_back(leafNode);
-			}
-		}
-	}
+      if (max_suffix_length > tree_[current_node].depth) {
+        const auto leaf_node = tree_.size();
+        tree_.push_back(Node());
+        tree_[leaf_node].parent_index = current_node;
+        tree_[leaf_node].depth = max_suffix_length;
+        tree_[leaf_node].suffix_index = suffix_start;
+        tree_[current_node].children.push_back(leaf_node);
+        active_path_stack.push_back(leaf_node);
+      }
+    }
+  }
 
-	void printDFS() const
-	{
-		if (tree.empty())
-			return;
+  void print_dfs() const {
+    if (tree_.empty()) return;
 
-		std::vector<int> dfsOrder;
-		std::vector<int> newId(tree.size(), 0);
-		std::vector<int> dfsStack;
-		dfsStack.push_back(0);
+    std::vector<std::size_t> dfs_order;
+    std::vector<std::size_t> new_id(tree_.size(), 0);
+    std::vector<std::size_t> dfs_stack;
+    dfs_stack.push_back(0);
 
-		while (!dfsStack.empty())
-		{
-			int u = dfsStack.back();
-			dfsStack.pop_back();
-			newId[u] = dfsOrder.size();
-			dfsOrder.push_back(u);
-			for (int i = (int)tree[u].children.size() - 1; i >= 0; i--)
-			{
-				dfsStack.push_back(tree[u].children[i]);
-			}
-		}
+    while (!dfs_stack.empty()) {
+      const auto node = dfs_stack.back();
+      dfs_stack.pop_back();
+      new_id[node] = dfs_order.size();
+      dfs_order.push_back(node);
+      for (auto it = tree_[node].children.rbegin();
+           it != tree_[node].children.rend(); ++it) {
+        dfs_stack.push_back(*it);
+      }
+    }
 
-		std::cout << tree.size() << "\n";
-		for (int i = 1; i < (int)tree.size(); i++)
-		{
-			int u = dfsOrder[i];
-			int p = tree[u].parent;
-			int pNew = newId[p];
+    std::cout << tree_.size() << "\n";
+    for (std::size_t i = 1; i < tree_.size(); ++i) {
+      const auto node = dfs_order[i];
+      const auto parent = tree_[node].parent_index;
+      const auto parent_new_id = new_id[parent];
 
-			int startPos = tree[u].suf_idx + tree[p].depth;
-			int endPos = tree[u].suf_idx + tree[u].depth;
+      const auto start_position =
+          tree_[node].suffix_index + tree_[parent].depth;
+      const auto end_position = tree_[node].suffix_index + tree_[node].depth;
 
-			int stringIndicator = 0;
-			int leftBound = 0;
-			int rightBound = 0;
+      std::size_t string_indicator = 0;
+      std::size_t left_bound = 0;
+      std::size_t right_bound = 0;
 
-			if (tree[u].suf_idx < lengthS)
-			{
-				stringIndicator = 0;
-				leftBound = startPos;
-				rightBound = endPos;
-			}
-			else
-			{
-				stringIndicator = 1;
-				leftBound = startPos - lengthS;
-				rightBound = endPos - lengthS;
-			}
+      if (tree_[node].suffix_index < length_s_) {
+        string_indicator = 0;
+        left_bound = start_position;
+        right_bound = end_position;
+      } else {
+        string_indicator = 1;
+        left_bound = start_position - length_s_;
+        right_bound = end_position - length_s_;
+      }
 
-			std::cout << pNew << " " << stringIndicator << " " << leftBound << " " << rightBound << "\n";
-		}
-	}
+      std::cout << parent_new_id << " " << string_indicator << " " << left_bound
+                << " " << right_bound << "\n";
+    }
+  }
 
-      private:
-	std::string stringS;
-	std::string stringT;
-	std::string combinedString;
-	int lengthS;
-	int totalLength;
-	std::vector<Node> tree;
+ private:
+  std::size_t length_s_;
+  std::size_t total_length_;
+  std::vector<Node> tree_;
 };
 
-int main()
-{
-	std::string stringS, stringT;
-	std::cin >> stringS >> stringT;
+int main() {
+  std::string string_s;
+  std::string string_t;
+  std::cin >> string_s >> string_t;
 
-	SuffixArray saBuilder(stringS + stringT);
+  const SuffixArray suffix_array_builder(string_s + string_t);
 
-	SuffixTree treeBuilder(stringS, stringT);
-	treeBuilder.build(saBuilder.getSA(), saBuilder.getLCP());
+  SuffixTree suffix_tree_builder(string_s, string_t);
+  suffix_tree_builder.build(suffix_array_builder.get_suffix_array(),
+                            suffix_array_builder.get_lcp());
 
-	treeBuilder.printDFS();
+  suffix_tree_builder.print_dfs();
 
-	return 0;
+  return 0;
 }
