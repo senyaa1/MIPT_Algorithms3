@@ -27,7 +27,7 @@ class SuffixAutomaton {
   }
 
   std::string findKthSubstring(uint64_t k) {
-    uint64_t total_paths = dfs(0);
+    uint64_t total_paths = dfs(0, automaton);
 
     if (total_paths < k) {
       return "-1";
@@ -145,7 +145,7 @@ class SuffixAutomaton {
     }
   }
 
-  uint64_t dfs(int current_state) {
+  static uint64_t dfs(int current_state, std::vector<State>& automaton) {
     if (automaton[current_state].visited) {
       return automaton[current_state].paths;
     }
@@ -156,7 +156,7 @@ class SuffixAutomaton {
     for (int i = 0; i < ALPHABET_SIZE; i++) {
       int next_state = automaton[current_state].next[i];
       if (next_state != -1 && automaton[next_state].mask == 3) {
-        current_paths += dfs(next_state);
+        current_paths += dfs(next_state, automaton);
       }
     }
 
