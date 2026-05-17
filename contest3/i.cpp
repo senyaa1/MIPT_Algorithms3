@@ -5,13 +5,12 @@
 
 using Vector64 = std::vector<int64_t>;
 
-class ModMath
+namespace ModMath
 {
-      public:
-	static constexpr int64_t MOD = 7340033;
-	static constexpr int64_t G = 3;
+	constexpr int64_t MOD = 7340033;
+	constexpr int64_t G = 3;
 
-	static int64_t power(int64_t base, int64_t exp)
+	int64_t power(int64_t base, int64_t exp)
 	{
 		int64_t res = 1;
 		base %= MOD;
@@ -27,16 +26,15 @@ class ModMath
 		return res;
 	}
 
-	static int64_t modInverse(int64_t n)
+	int64_t modInverse(int64_t n)
 	{
 		return power(n, MOD - 2);
 	}
-};
+}
 
-class FFT
+namespace FftTransformer
 {
-      public:
-	static void transform(Vector64 &a, bool invert)
+	void transform(Vector64 &a, bool invert)
 	{
 		std::size_t n = a.size();
 		for (std::size_t i = 1, j = 0; i < n; ++i)
@@ -81,7 +79,7 @@ class FFT
 			}
 		}
 	}
-};
+}
 
 class Polynomial
 {
@@ -93,11 +91,38 @@ class Polynomial
 	{
 	}
 
-	Vector64 inverse(std::size_t m)
+	explicit Polynomial(std::size_t n) : coeffs(n)
+	{
+	}
+
+	friend std::istream &operator>>(std::istream &is, Polynomial &p)
+	{
+		for (auto &coeff : p.coeffs)
+		{
+			is >> coeff;
+		}
+		return is;
+	}
+
+	friend std::ostream &operator<<(std::ostream &os, const Polynomial &p)
+	{
+		for (std::size_t i = 0; i < p.coeffs.size(); ++i)
+		{
+			os << p.coeffs[i] << (i == p.coeffs.size() - 1 ? "" : " ");
+		}
+		return os;
+	}
+
+	int64_t operator[](std::size_t i) const
+	{
+		return coeffs[i];
+	}
+
+	Polynomial inverse(std::size_t m) const
 	{
 		if (coeffs.empty() || coeffs[0] == 0)
 		{
-			return {};
+			return Polynomial(Vector64{});
 		}
 		Vector64 res;
 		res.push_back(ModMath::modInverse(coeffs[0]));
@@ -110,8 +135,8 @@ class Polynomial
 			Vector64 res_copy = res;
 			res_copy.resize(2 * len, 0);
 
-			FFT::transform(a_copy, false);
-			FFT::transform(res_copy, false);
+			FftTransformer::transform(a_copy, false);
+			FftTransformer::transform(res_copy, false);
 
 			for (std::size_t i = 0; i < 2 * len; ++i)
 			{
@@ -120,12 +145,12 @@ class Polynomial
 					      ModMath::MOD;
 			}
 
-			FFT::transform(res_copy, true);
+			FftTransformer::transform(res_copy, true);
 			res_copy.resize(len);
 			res = res_copy;
 		}
 		res.resize(m);
-		return res;
+		return Polynomial(res);
 	}
 };
 
@@ -134,26 +159,17 @@ int main()
 	std::size_t m, n;
 	std::cin >> m >> n;
 
-	Vector64 a(n + 1);
-	for (std::size_t i = 0; i <= n; ++i)
-	{
-		std::cin >> a[i];
-	}
+	Polynomial poly(n + 1);
+	std::cin >> poly;
 
-	if (a[0] == 0)
+	if (poly[0] == 0)
 	{
 		std::cout << "The ears of a dead donkey" << std::endl;
 		return 0;
 	}
 
-	Polynomial poly(a);
-	Vector64 inv = poly.inverse(m);
-
-	for (std::size_t i = 0; i < m; ++i)
-	{
-		std::cout << inv[i] << (i == m - 1 ? "" : " ");
-	}
-	std::cout << std::endl;
+	Polynomial inv = poly.inverse(m);
+	std::cout << inv << std::endl;
 
 	return 0;
 }
