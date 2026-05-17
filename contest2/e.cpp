@@ -171,11 +171,11 @@ class SuffixTree {
     }
   }
 
-  void print_dfs() const {
-    if (tree_.empty()) return;
-
+  std::pair<std::vector<std::size_t>, std::vector<std::size_t>> calculate_dfs() const {
     std::vector<std::size_t> dfs_order;
     std::vector<std::size_t> new_id(tree_.size(), 0);
+    if (tree_.empty()) return {dfs_order, new_id};
+
     std::vector<std::size_t> dfs_stack;
     dfs_stack.push_back(0);
 
@@ -189,6 +189,14 @@ class SuffixTree {
         dfs_stack.push_back(*it);
       }
     }
+    
+    return {dfs_order, new_id};
+  }
+
+  void print_tree() const {
+    if (tree_.empty()) return;
+
+    const auto [dfs_order, new_id] = calculate_dfs();
 
     std::cout << tree_.size() << "\n";
     for (std::size_t i = 1; i < tree_.size(); ++i) {
@@ -236,7 +244,7 @@ int main() {
   suffix_tree_builder.build(suffix_array_builder.get_suffix_array(),
                             suffix_array_builder.get_lcp());
 
-  suffix_tree_builder.print_dfs();
+  suffix_tree_builder.print_tree();
 
   return 0;
 }
