@@ -4,6 +4,43 @@
 #include <string>
 #include <vector>
 
+static constexpr int ALPHABET_SIZE = 26;
+static constexpr int TOTAL_CHARS = ALPHABET_SIZE + 1;
+
+struct State {
+  int length = 0;
+  int link = -1;
+  int next[TOTAL_CHARS];
+  int mask = 0;
+  uint64_t paths = 0;
+  bool visited = false;
+
+  State() {
+    for (int i = 0; i < TOTAL_CHARS; i++) {
+      next[i] = -1;
+    }
+  }
+};
+
+uint64_t Dfs(int current_state, std::vector<State>& automaton) {
+  if (automaton[current_state].visited) {
+    return automaton[current_state].paths;
+  }
+  automaton[current_state].visited = true;
+
+  uint64_t current_paths = (current_state == 0) ? 0 : 1;
+
+  for (int i = 0; i < ALPHABET_SIZE; i++) {
+    int next_state = automaton[current_state].next[i];
+    if (next_state != -1 && automaton[next_state].mask == 3) {
+      current_paths += Dfs(next_state, automaton);
+    }
+  }
+
+  automaton[current_state].paths = current_paths;
+  return current_paths;
+}
+
 class SuffixAutomaton {
  public:
   SuffixAutomaton(const std::string& first_string,
@@ -27,7 +64,7 @@ class SuffixAutomaton {
   }
 
   std::string findKthSubstring(uint64_t k) {
-    uint64_t total_paths = dfs(0, automaton);
+    uint64_t total_paths = Dfs(0, automaton);
 
     if (total_paths < k) {
       return "-1";
@@ -59,24 +96,6 @@ class SuffixAutomaton {
   }
 
  private:
-  static constexpr int ALPHABET_SIZE = 26;
-  static constexpr int TOTAL_CHARS = ALPHABET_SIZE + 1;
-
-  struct State {
-    int length = 0;
-    int link = -1;
-    int next[TOTAL_CHARS];
-    int mask = 0;
-    uint64_t paths = 0;
-    bool visited = false;
-
-    State() {
-      for (int i = 0; i < TOTAL_CHARS; i++) {
-        next[i] = -1;
-      }
-    }
-  };
-
   int getCharIndex(char character) {
     if (character == '#') return ALPHABET_SIZE;
     return character - 'a';
@@ -145,29 +164,11 @@ class SuffixAutomaton {
     }
   }
 
-  static uint64_t dfs(int current_state, std::vector<State>& automaton) {
-    if (automaton[current_state].visited) {
-      return automaton[current_state].paths;
-    }
-    automaton[current_state].visited = true;
-
-    uint64_t current_paths = (current_state == 0) ? 0 : 1;
-
-    for (int i = 0; i < ALPHABET_SIZE; i++) {
-      int next_state = automaton[current_state].next[i];
-      if (next_state != -1 && automaton[next_state].mask == 3) {
-        current_paths += dfs(next_state, automaton);
-      }
-    }
-
-    automaton[current_state].paths = current_paths;
-    return current_paths;
-  }
-
   std::vector<State> automaton;
   int size;
   int last_state;
 };
+
 
 int main() {
   std::string first_string, second_string;
