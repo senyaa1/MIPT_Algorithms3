@@ -12,7 +12,6 @@ class Point {
   Point operator-(const Point& other) const {
     return {x - other.x, y - other.y};
   }
-
   Point operator+(const Point& other) const {
     return {x + other.x, y + other.y};
   }
@@ -22,9 +21,7 @@ class Point {
   }
 
   bool operator<(const Point& other) const {
-    if (y != other.y) {
-      return y < other.y;
-    }
+    if (y != other.y) return y < other.y;
     return x < other.x;
   }
 
@@ -32,73 +29,81 @@ class Point {
   long long y;
 };
 
-int GetHalfPlane(Point direction) {
+enum class HalfPlane { kUpper = 0, kLower = 1 };
+
+HalfPlane GetHalfPlane(const Point& direction) {
   if (direction.y != 0) {
-    if (direction.y > 0) {
-      return 0;
-    } else {
-      return 1;
-    }
+    return (direction.y > 0) ? HalfPlane::kUpper : HalfPlane::kLower;
   }
-  if (direction.x > 0) {
-    return 0;
-  } else {
-    return 1;
-  }
+  return (direction.x > 0) ? HalfPlane::kUpper : HalfPlane::kLower;
 }
 
 bool CompareByAngle(const Point& a, const Point& b) {
-  int half_a = GetHalfPlane(a);
-  int half_b = GetHalfPlane(b);
-  if (half_a != half_b) {
-    return half_a < half_b;
-  }
+  HalfPlane half_a = GetHalfPlane(a);
+  HalfPlane half_b = GetHalfPlane(b);
+
+  if (half_a != half_b) return half_a < half_b;
+
   long long cross_product = a.Cross(b);
   return cross_product > 0;
 }
 
 double GetPointSegmentDistance(double point_x, double point_y, double start_x,
                                double start_y, double end_x, double end_y) {
-  double diff_x = end_x - start_x;
-  double diff_y = end_y - start_y;
-  double t = ((point_x - start_x) * diff_x + (point_y - start_y) * diff_y) /
-             (diff_x * diff_x + diff_y * diff_y);
-  if (t < 0.0) {
-    t = 0.0;
-  }
-  if (t > 1.0) {
-    t = 1.0;
-  }
-  double closest_x = start_x + t * diff_x - point_x;
-  double closest_y = start_y + t * diff_y - point_y;
-  return std::sqrt(closest_x * closest_x + closest_y * closest_y);
+  double segment_dx = end_x - start_x;
+  double segment_dy = end_y - start_y;
+
+  double denom = segment_dx * segment_dx + segment_dy * segment_dy;
+  double projection_factor =
+      ((point_x - start_x) * segment_dx + (point_y - start_y) * segment_dy) /
+      denom;
+
+  if (projection_factor < 0.0) projection_factor = 0.0;
+  if (projection_factor > 1.0) projection_factor = 1.0;
+
+  double closest_dx = (start_x + projection_factor * segment_dx) - point_x;
+  double closest_dy = (start_y + projection_factor * segment_dy) - point_y;
+
+  return std::sqrt(closest_dx * closest_dx + closest_dy * closest_dy);
 }
 
-int main() {
+static void ReadInput(std::vector<Point>& airport, std::vector<Point>& cloud) {
   int n, m;
   std::cin >> n >> m;
+  airport.resize(n);
+  cloud.resize(m);
 
-  std::vector<Point> airport(n);
-  std::vector<Point> cloud(m);
-  for (int i = 0; i < n; ++i) {
-    std::cin >> airport[i].x >> airport[i].y;
-  }
-  for (int i = 0; i < m; ++i) {
-    std::cin >> cloud[i].x >> cloud[i].y;
-  }
+  for (int i = 0; i < n; ++i) std::cin >> airport[i].x >> airport[i].y;
+  for (int i = 0; i < m; ++i) std::cin >> cloud[i].x >> cloud[i].y;
+}
 
-  std::vector<Point> inverted_cloud(m);
-  for (int i = 0; i < m; ++i) {
-    inverted_cloud[i] = Point(-cloud[i].x, -cloud[i].y);
+static std::vector<Point> InvertPolygon(const std::vector<Point>& poly) {
+  std::vector<Point> inverted(poly.size());
+  for (size_t i = 0; i < poly.size(); ++i) {
+    inverted[i] = Point(-poly[i].x, -poly[i].y);
   }
+  return inverted;
+}
 
+static std::vector<Point> CollectEdges(const std::vector<Point>& poly) {
   std::vector<Point> edges;
-  for (int i = 0; i < n; ++i) {
-    edges.push_back(airport[(i + 1) % n] - airport[i]);
+  edges.reserve(poly.size());
+  for (size_t i = 0; i < poly.size(); ++i) {
+    edges.push_back(poly[(i + 1) % poly.size()] - poly[i]);
   }
-  for (int i = 0; i < m; ++i) {
-    edges.push_back(inverted_cloud[(i + 1) % m] - inverted_cloud[i]);
-  }
+  return edges;
+}
+
+static std::vector<Point> BuildMinkowskiSum(
+    const std::vector<Point>& airport,
+    const std::vector<Point>& inverted_cloud) {
+  std::vector<Point> edges;
+  auto a_edges = CollectEdges(airport);
+  auto c_edges = CollectEdges(inverted_cloud);
+  edges.reserve(a_edges.size() + c_edges.size());
+
+  edges.insert(edges.end(), a_edges.begin(), a_edges.end());
+  edges.insert(edges.end(), c_edges.begin(), c_edges.end());
 
   std::sort(edges.begin(), edges.end(), CompareByAngle);
 
@@ -107,32 +112,49 @@ int main() {
       *std::min_element(inverted_cloud.begin(), inverted_cloud.end());
 
   std::vector<Point> minkowski_sum;
-  Point current = start_airport + start_inverted_cloud;
+  minkowski_sum.reserve(edges.size() + 1);
 
+  Point current = start_airport + start_inverted_cloud;
   minkowski_sum.push_back(current);
+
   for (const auto& edge : edges) {
     current = current + edge;
     minkowski_sum.push_back(current);
   }
-  minkowski_sum.pop_back();
 
-  size_t size = minkowski_sum.size();
+  minkowski_sum.pop_back();
+  return minkowski_sum;
+}
+
+static double MinDistanceToOrigin(const std::vector<Point>& polygon) {
+  const size_t size = polygon.size();
   double min_distance = 1e18;
 
   for (size_t i = 0; i < size; ++i) {
-    const Point& u = minkowski_sum[i];
-    const Point& v = minkowski_sum[(i + 1) % size];
-    double distance = GetPointSegmentDistance(0.0, 0.0, u.x, u.y, v.x, v.y);
-    if (distance < min_distance) {
-      min_distance = distance;
-    }
+    const Point& u = polygon[i];
+    const Point& v = polygon[(i + 1) % size];
+    double d = GetPointSegmentDistance(0.0, 0.0, u.x, u.y, v.x, v.y);
+    if (d < min_distance) min_distance = d;
   }
+  return min_distance;
+}
 
-  double answer = min_distance - 60.0;
-  if (answer < 0.0) {
-    answer = 0.0;
-  }
+static double ComputeAnswer(double min_distance) {
+  double min_time_available = min_distance - 60.0;
+  if (min_time_available < 0.0) min_time_available = 0.0;
+  return min_time_available;
+}
 
-  std::cout << std::fixed << std::setprecision(10) << answer << std::endl;
+int main() {
+  std::vector<Point> airport, cloud;
+  ReadInput(airport, cloud);
+
+  std::vector<Point> inverted_cloud = InvertPolygon(cloud);
+  std::vector<Point> minkowski_sum = BuildMinkowskiSum(airport, inverted_cloud);
+
+  double min_distance = MinDistanceToOrigin(minkowski_sum);
+  double answer = ComputeAnswer(min_distance);
+
+  std::cout << std::fixed << std::setprecision(10) << answer << '\n';
   return 0;
 }
